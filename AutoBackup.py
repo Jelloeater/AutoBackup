@@ -21,15 +21,22 @@ class PasswordHelper:
     def setup_master_key():
         logging.debug("Setting up master key")
         key = Fernet.generate_key()
+        logging.debug("Generated Key")
         logging.debug(key)
-        encode_key = base64.urlsafe_b64encode(key)
+        encode_key = base64.urlsafe_b64encode(key).decode("utf-8")  # Convert to string for storage
+        logging.debug("Key to store in keychain: ")
         logging.debug(encode_key)
         keyring.set_password("AutoBackup", "DBkey", encode_key)
 
     @staticmethod
     def get_master_pass():
         key_pass = keyring.get_password("AutoBackup", "DBkey")
+        logging.debug("Raw Key:")
+        logging.debug(key_pass)
+
         decode_key_pass = base64.urlsafe_b64decode(key_pass)
+        logging.debug("Key to use in decryption: ")
+        logging.debug(decode_key_pass)
         return decode_key_pass
 
     @staticmethod
@@ -117,9 +124,18 @@ class main(object):
             DatabaseHelper().add_data()
             sys.exit(0)
 
+        try:
+            keyring.delete_password("AutoBackup", "DBkey")
+        except:
+            pass
+
         PasswordHelper.setup_master_key()
-        encoded = PasswordHelper.encode_password(input('Enter ssh_password:'))
-        print("Your pass = " + PasswordHelper.decode_password(encoded))
+        password = "AwesomeTestPassword"
+        encoded = PasswordHelper.encode_password(password.encode("utf-8")) # Encodes to bytes
+        logging.debug("Encoded password")
+        logging.debug(encoded)
+        logging.debug("Decoded password")
+        logging.debug(PasswordHelper.decode_password(encoded))
 
 
 if __name__ == "__main__":
