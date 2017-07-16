@@ -18,10 +18,10 @@ BASE = declarative_base()  # Needs to be module level w/ database
 
 
 class PasswordHelper:
-    master_hash_key_location = "DB_key"  # Can be overridden for testing
+    application_name = 'AutoBackup'
+    master_hash_key_location = 'key'  # Can be overridden for testing
 
-    @staticmethod
-    def setup_master_key():
+    def setup_master_key(self):
         logging.debug("Setting up master key")
         key = Fernet.generate_key()
         logging.debug("Generated Key")
@@ -29,11 +29,10 @@ class PasswordHelper:
         encode_key = base64.urlsafe_b64encode(key).decode("utf-8")  # Convert to string for storage
         logging.debug("Key to store in keychain: ")
         logging.debug(encode_key)
-        keyring.set_password("AutoBackup", PasswordHelper.master_hash_key_location, encode_key)
+        keyring.set_password(self.application_name, self.master_hash_key_location, encode_key)
 
-    @staticmethod
-    def get_master_pass():
-        key_pass = keyring.get_password("AutoBackup", PasswordHelper.master_hash_key_location)
+    def get_master_pass(self):
+        key_pass = keyring.get_password(self.application_name, self.master_hash_key_location)
         logging.debug("Raw Key:")
         logging.debug(key_pass)
 
@@ -42,14 +41,12 @@ class PasswordHelper:
         logging.debug(decode_key_pass)
         return decode_key_pass
 
-    @staticmethod
-    def decode_password(hash_pass_in):
-        f = Fernet(PasswordHelper.get_master_pass())
+    def decode_password(self, hash_pass_in):
+        f = Fernet(self.get_master_pass())
         return f.decrypt(hash_pass_in).decode("utf-8")
 
-    @staticmethod
-    def encode_password(password_in):
-        f = Fernet(PasswordHelper.get_master_pass())
+    def encode_password(self, password_in):
+        f = Fernet(self.get_master_pass())
         return f.encrypt(password_in.encode("utf-8"))
 
 
@@ -65,7 +62,6 @@ class DatabaseHelper:
         print('Are you sure to want to DROP ALL TABLES, this cannot be undone!')
         if input('({0})>'.format('Type YES to continue')) == 'YES':
             logging.info("Resetting master key")
-
             BASE.metadata.drop_all(engine)
             BASE.metadata.create_all(engine)
             print('DATABASE RE-INITIALIZED')
@@ -91,7 +87,7 @@ class DatabaseHelper:
         db_entry = Database_ORM()  # Create DB obj class instance
         db_entry.ssh_ip = input('Enter ssh_ip:')
         db_entry.ssh_username = input('Enter ssh_username:')
-        db_entry.ssh_password = PasswordHelper.encode_password(input('Enter ssh_password:'))
+        db_entry.ssh_password = PasswordHelper().encode_password(input('Enter ssh_password:'))
         db_entry.ssh_command = input('Enter ssh_command:')
         s = self.get_session()
         s.add(db_entry)
@@ -119,28 +115,13 @@ class main(object):
         args = parser.parse_args()
 
         if args.setup:
-            PasswordHelper.setup_master_key()
+            PasswordHelper().setup_master_key()
             DatabaseHelper().create_tables()
             sys.exit(0)
 
         if args.add:
             DatabaseHelper().add_data()
             sys.exit(0)
-
-        try:
-            keyring.delete_password("AutoBackup", "DBkey")
-        except:
-            pass
-
-        PasswordHelper.setup_master_key()
-        password = "AwesomeTestPassword"  # Test Password
-        logging.debug("Input password")
-        logging.debug(password)
-        password_in_database = PasswordHelper.encode_password(password)  # Encodes to bytes
-        logging.debug("Encoded password")
-        logging.debug(password_in_database)
-        logging.debug("Decoded password")
-        logging.debug(PasswordHelper.decode_password(password_in_database))
 
 
 if __name__ == "__main__":
@@ -149,14 +130,16 @@ if __name__ == "__main__":
 
 class UnitTests(unittest.TestCase):
     def test_password_encoding(self):
-        PasswordHelper.setup_master_key()
+        ph = PasswordHelper()
+        ph.master_hash_key_location = "unit_test"
+        ph.setup_master_key()
         password = "AwesomeTestPassword"  # Test Password
         logging.debug("Input password")
         logging.debug(password)
-        password_in_database = PasswordHelper.encode_password(password)  # Encodes to bytes
+        password_in_database = ph.encode_password(password)  # Encodes to bytes
         logging.debug("Encoded password")
         logging.debug(password_in_database)
         logging.debug("Decoded password")
-        decoded_pass = PasswordHelper.decode_password(password_in_database)
+        decoded_pass = ph.decode_password(password_in_database)
         logging.debug(decoded_pass)
         self.assertEqual(password, decoded_pass)
