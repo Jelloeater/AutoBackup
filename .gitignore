@@ -19,6 +19,7 @@ __pycache__/
 
 # User-specific stuff:
 # .idea/workspace.xml
+/AutoBackupData.db
 # .idea/tasks.xml
 # .idea/dictionaries
 

@@ -7,6 +7,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from cryptography.fernet import Fernet
 import sys
+import unittest
 
 __author__ = 'Jesse'
 
@@ -17,6 +18,8 @@ BASE = declarative_base()  # Needs to be module level w/ database
 
 
 class PasswordHelper:
+    master_hash_key_location = "DB_key"  # Can be overridden for testing
+
     @staticmethod
     def setup_master_key():
         logging.debug("Setting up master key")
@@ -26,11 +29,11 @@ class PasswordHelper:
         encode_key = base64.urlsafe_b64encode(key).decode("utf-8")  # Convert to string for storage
         logging.debug("Key to store in keychain: ")
         logging.debug(encode_key)
-        keyring.set_password("AutoBackup", "DBkey", encode_key)
+        keyring.set_password("AutoBackup", PasswordHelper.master_hash_key_location, encode_key)
 
     @staticmethod
     def get_master_pass():
-        key_pass = keyring.get_password("AutoBackup", "DBkey")
+        key_pass = keyring.get_password("AutoBackup", PasswordHelper.master_hash_key_location)
         logging.debug("Raw Key:")
         logging.debug(key_pass)
 
@@ -42,12 +45,12 @@ class PasswordHelper:
     @staticmethod
     def decode_password(hash_pass_in):
         f = Fernet(PasswordHelper.get_master_pass())
-        return f.decrypt(hash_pass_in)
+        return f.decrypt(hash_pass_in).decode("utf-8")
 
     @staticmethod
     def encode_password(password_in):
         f = Fernet(PasswordHelper.get_master_pass())
-        return f.encrypt(password_in)
+        return f.encrypt(password_in.encode("utf-8"))
 
 
 class DatabaseHelper:
@@ -130,13 +133,30 @@ class main(object):
             pass
 
         PasswordHelper.setup_master_key()
-        password = "AwesomeTestPassword"
-        encoded = PasswordHelper.encode_password(password.encode("utf-8")) # Encodes to bytes
+        password = "AwesomeTestPassword"  # Test Password
+        logging.debug("Input password")
+        logging.debug(password)
+        password_in_database = PasswordHelper.encode_password(password)  # Encodes to bytes
         logging.debug("Encoded password")
-        logging.debug(encoded)
+        logging.debug(password_in_database)
         logging.debug("Decoded password")
-        logging.debug(PasswordHelper.decode_password(encoded))
+        logging.debug(PasswordHelper.decode_password(password_in_database))
 
 
 if __name__ == "__main__":
     main.run()
+
+
+class UnitTests(unittest.TestCase):
+    def test_password_encoding(self):
+        PasswordHelper.setup_master_key()
+        password = "AwesomeTestPassword"  # Test Password
+        logging.debug("Input password")
+        logging.debug(password)
+        password_in_database = PasswordHelper.encode_password(password)  # Encodes to bytes
+        logging.debug("Encoded password")
+        logging.debug(password_in_database)
+        logging.debug("Decoded password")
+        decoded_pass = PasswordHelper.decode_password(password_in_database)
+        logging.debug(decoded_pass)
+        self.assertEqual(password, decoded_pass)
