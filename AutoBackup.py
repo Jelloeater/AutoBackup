@@ -2,6 +2,7 @@ import base64
 import keyring
 import argparse
 import logging
+import paramiko as paramiko
 import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -50,6 +51,20 @@ class PasswordHelper:
         return f.encrypt(password_in.encode("utf-8"))
 
 
+class SshHelper:
+    server = ""
+    username = ""
+    password = ""
+    command = ""
+
+    def send_command(self):
+        ssh = paramiko.SSHClient()
+        ssh.connect(hostname=self.server, username=self.username, password=self.password)
+        output = ssh.exec_command(self.command)
+        ssh.close()
+        return output
+
+
 class DatabaseHelper:
     # from sqlalchemy.dialects.sqlite import \
     # BLOB, BOOLEAN, CHAR, DATE, DATETIME, DECIMAL, FLOAT, \
@@ -91,7 +106,32 @@ class DatabaseHelper:
         db_entry.ssh_command = input('Enter ssh_command:')
         s = self.get_session()
         s.add(db_entry)
-        s.commit()  # Write DB obj to disk
+        s.commit()
+
+    def delete_row(self):
+        row_to_remove = int(input('Enter row to remove:'))
+        s = self.get_session()
+        s.query(Database_ORM).filter_by(row_id=row_to_remove).delete()
+        s.commit()
+
+class TableOutput():
+    @staticmethod
+    def generate_table_data():
+        rows = DatabaseHelper().get_all_rows()
+        data_rows = []
+        header_row = ['row_id', 'ssh_ip', 'ssh_username', 'ssh_command']
+        for i in rows:
+            data_rows.append([i.row_id, i.ssh_ip, i.ssh_username, i.ssh_command])
+        return TableOutput.create_table(header_list_in=header_row, data_list_in=data_rows)
+
+
+    @staticmethod
+    def create_table(header_list_in=None, data_list_in=None):
+        from prettytable import PrettyTable
+        t = PrettyTable(header_list_in)
+        for i in data_list_in:
+            t.add_row(i)
+        return str(t)
 
 
 # Classes are directly mapped to tables, without the need for a mapper binding (ex mapper(Class, table_definition))
@@ -112,6 +152,8 @@ class main(object):
         parser = argparse.ArgumentParser()
         parser.add_argument("-s", "--setup", action="store_true", help="Setup Environment")
         parser.add_argument("-a", "--add", action="store_true", help="Add Entry to Database")
+        parser.add_argument("-g", "--get_rows", action="store_true", help="Print Rows")
+        parser.add_argument("-r", "--remove_row", action="store_true", help="Remove Row")
         args = parser.parse_args()
 
         if args.setup:
@@ -123,6 +165,14 @@ class main(object):
             DatabaseHelper().add_data()
             sys.exit(0)
 
+        if args.get_rows:
+            logging.debug(TableOutput.generate_table_data())
+            sys.exit(0)
+
+        if args.remove_row:
+            logging.debug(TableOutput.generate_table_data())
+            DatabaseHelper().delete_row()
+            sys.exit(0)
 
 if __name__ == "__main__":
     main.run()
