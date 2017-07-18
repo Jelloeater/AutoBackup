@@ -7,8 +7,10 @@ import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from cryptography.fernet import Fernet
+from prettytable import PrettyTable
 import sys
 import unittest
+import getpass
 
 __author__ = 'Jesse'
 
@@ -25,21 +27,13 @@ class PasswordHelper:
     def setup_master_key(self):
         logging.debug("Setting up master key")
         key = Fernet.generate_key()
-        logging.debug("Generated Key")
-        logging.debug(key)
         encode_key = base64.urlsafe_b64encode(key).decode("utf-8")  # Convert to string for storage
-        logging.debug("Key to store in keychain: ")
         logging.debug(encode_key)
         keyring.set_password(self.application_name, self.master_hash_key_location, encode_key)
 
     def get_master_pass(self):
         key_pass = keyring.get_password(self.application_name, self.master_hash_key_location)
-        logging.debug("Raw Key:")
-        logging.debug(key_pass)
-
         decode_key_pass = base64.urlsafe_b64decode(key_pass)
-        logging.debug("Key to use in decryption: ")
-        logging.debug(decode_key_pass)
         return decode_key_pass
 
     def decode_password(self, hash_pass_in):
@@ -59,6 +53,7 @@ class SshHelper:
 
     def send_command(self):
         ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(hostname=self.server, username=self.username, password=self.password)
         output = ssh.exec_command(self.command)
         ssh.close()
@@ -95,26 +90,57 @@ class DatabaseHelper:
         return DBSession()
 
     def get_all_rows(self):
-        session = self.get_session()
-        return session.query(Database_ORM).all()
+        s = self.get_session()
+        return s.query(Database_ORM).all()
 
     def add_data(self):
         db_entry = Database_ORM()  # Create DB obj class instance
         db_entry.ssh_ip = input('Enter ssh_ip:')
         db_entry.ssh_username = input('Enter ssh_username:')
-        db_entry.ssh_password = PasswordHelper().encode_password(input('Enter ssh_password:'))
+        db_entry.ssh_password = PasswordHelper().encode_password(getpass.getpass('Enter SSH Password:'))
         db_entry.ssh_command = input('Enter ssh_command:')
         s = self.get_session()
         s.add(db_entry)
         s.commit()
 
+    def modify_row(self):
+        row_to_edit = None
+        try:
+            row_to_edit = int(input('Enter row to edit:'))
+        except ValueError:
+            print("No row removed")
+
+        # TODO Find a more clever way to do this input
+
+        s = self.get_session()
+        o = s.query(Database_ORM).filter_by(row_id=row_to_edit).first()
+        i = input('Enter ssh_ip [' + o.ssh_ip + ']:')
+        if i != '':
+            o.ssh_ip = i
+        i = input('Enter ssh_username [' + o.ssh_username + ']:')
+        if i != '':
+            o.ssh_username = i
+        i = PasswordHelper().encode_password(getpass.getpass('Enter ssh_password:'))
+        if i != '':
+            o.ssh_password = i
+        i = input('Enter ssh_command [' + o.ssh_command + ']:')
+        if i != '':
+            o.ssh_command = i
+
+        s.commit()
+
     def delete_row(self):
-        row_to_remove = int(input('Enter row to remove:'))
+        row_to_remove = None
+        try:
+            row_to_remove = int(input('Enter row to remove:'))
+        except ValueError:
+            print("No row removed")
         s = self.get_session()
         s.query(Database_ORM).filter_by(row_id=row_to_remove).delete()
         s.commit()
 
-class TableOutput():
+
+class TableOutput:
     @staticmethod
     def generate_table_data():
         rows = DatabaseHelper().get_all_rows()
@@ -124,10 +150,8 @@ class TableOutput():
             data_rows.append([i.row_id, i.ssh_ip, i.ssh_username, i.ssh_command])
         return TableOutput.create_table(header_list_in=header_row, data_list_in=data_rows)
 
-
     @staticmethod
     def create_table(header_list_in=None, data_list_in=None):
-        from prettytable import PrettyTable
         t = PrettyTable(header_list_in)
         for i in data_list_in:
             t.add_row(i)
@@ -146,14 +170,27 @@ class Database_ORM(BASE):
     ssh_command = Column('ssh_command', String, nullable=False)
 
 
-class main(object):
+class main:
+    @staticmethod
+    def run_commands():
+        rows = DatabaseHelper().get_all_rows()
+        for i in rows:
+            h = SshHelper()
+            h.server = i.ssh_ip
+            h.username = i.ssh_username
+            h.password = PasswordHelper().decode_password(i.ssh_password)
+            h.command = i.ssh_command
+            h.send_command()
+
     @staticmethod
     def run():
         parser = argparse.ArgumentParser()
         parser.add_argument("-s", "--setup", action="store_true", help="Setup Environment")
-        parser.add_argument("-a", "--add", action="store_true", help="Add Entry to Database")
         parser.add_argument("-g", "--get_rows", action="store_true", help="Print Rows")
+        parser.add_argument("-a", "--add_row", action="store_true", help="Add Entry to Database")
+        parser.add_argument("-m", "--modify_row", action="store_true", help="Modify Entry in Database")
         parser.add_argument("-r", "--remove_row", action="store_true", help="Remove Row")
+        parser.add_argument("-e", "--exec_commands", action="store_true", help="Execute Commands")
         args = parser.parse_args()
 
         if args.setup:
@@ -161,18 +198,29 @@ class main(object):
             DatabaseHelper().create_tables()
             sys.exit(0)
 
-        if args.add:
+        if args.add_row:
+            print(TableOutput.generate_table_data())
             DatabaseHelper().add_data()
             sys.exit(0)
 
+        if args.modify_row:
+            print(TableOutput.generate_table_data())
+            DatabaseHelper().modify_row()
+            sys.exit(0)
+
         if args.get_rows:
-            logging.debug(TableOutput.generate_table_data())
+            print(TableOutput.generate_table_data())
             sys.exit(0)
 
         if args.remove_row:
-            logging.debug(TableOutput.generate_table_data())
+            print(TableOutput.generate_table_data())
             DatabaseHelper().delete_row()
             sys.exit(0)
+
+        if args.exec_commands:
+            main.run_commands()
+            sys.exit(0)
+
 
 if __name__ == "__main__":
     main.run()

@@ -1,7 +1,11 @@
 #AutoBackup
-Securely runs commands over SSH
+Securely runs commands over SSH using Python 3
 
 ## Dependencies
-* Python 3
-* cryptography (pip install)
+Install modules via pip install
+
+* keyring
+* paramiko
 * sqlalchemy
+* cryptography
+* prettytable
