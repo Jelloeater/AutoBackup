@@ -52,11 +52,20 @@ class SshHelper:
     command = ""
 
     def send_command(self):
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=self.server, username=self.username, password=self.password)
-        output = ssh.exec_command(self.command)
-        ssh.close()
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(hostname=self.server, username=self.username, password=self.password)
+            output = ssh.exec_command(self.command)
+            ssh.close()
+        except paramiko.ssh_exception.NoValidConnectionsError:
+            output = "NoValidConnectionsError: " + self.server
+            logging.error(output)
+        except paramiko.ssh_exception.AuthenticationException:
+            output = "Authentication failed: " + self.server
+            logging.error(output)
+
+        logging.debug(output)
         return output
 
 
@@ -220,7 +229,6 @@ class main:
         if args.exec_commands:
             main.run_commands()
             sys.exit(0)
-
 
 if __name__ == "__main__":
     main.run()
