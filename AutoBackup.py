@@ -49,13 +49,14 @@ class SshHelper:
     server = ""
     username = ""
     password = ""
+    port = 22
     command = ""
 
     def send_command(self):
         try:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(hostname=self.server, username=self.username, password=self.password)
+            ssh.connect(hostname=self.server, username=self.username, password=self.password, port=self.port)
             output = ssh.exec_command(self.command)
             ssh.close()
         except paramiko.ssh_exception.NoValidConnectionsError:
@@ -105,8 +106,9 @@ class DatabaseHelper:
     def add_data(self):
         db_entry = Database_ORM()  # Create DB obj class instance
         db_entry.ssh_ip = input('Enter ssh_ip:')
+        db_entry.ssh_port = input('Enter ssh_port:')
         db_entry.ssh_username = input('Enter ssh_username:')
-        db_entry.ssh_password = PasswordHelper().encode_password(getpass.getpass('Enter SSH Password:'))
+        db_entry.ssh_password = PasswordHelper().encode_password(getpass.getpass('Enter ssh_password:'))
         db_entry.ssh_command = input('Enter ssh_command:')
         s = self.get_session()
         s.add(db_entry)
@@ -123,15 +125,23 @@ class DatabaseHelper:
 
         s = self.get_session()
         o = s.query(Database_ORM).filter_by(row_id=row_to_edit).first()
+
         i = input('Enter ssh_ip [' + o.ssh_ip + ']:')
         if i != '':
             o.ssh_ip = i
+
+        i = int(input('Enter ssh_port [' + o.ssh_port + ']:'))
+        if i != '':
+            o.ssh_ip = i
+
         i = input('Enter ssh_username [' + o.ssh_username + ']:')
         if i != '':
             o.ssh_username = i
+
         i = PasswordHelper().encode_password(getpass.getpass('Enter ssh_password:'))
         if i != '':
             o.ssh_password = i
+
         i = input('Enter ssh_command [' + o.ssh_command + ']:')
         if i != '':
             o.ssh_command = i
@@ -154,9 +164,9 @@ class TableOutput:
     def generate_table_data():
         rows = DatabaseHelper().get_all_rows()
         data_rows = []
-        header_row = ['row_id', 'ssh_ip', 'ssh_username', 'ssh_command']
+        header_row = ['row_id', 'ssh_ip', 'ssh_port', 'ssh_username', 'ssh_command']
         for i in rows:
-            data_rows.append([i.row_id, i.ssh_ip, i.ssh_username, i.ssh_command])
+            data_rows.append([i.row_id, i.ssh_ip, i.ssh_port, i.ssh_username, i.ssh_command])
         return TableOutput.create_table(header_list_in=header_row, data_list_in=data_rows)
 
     @staticmethod
@@ -174,6 +184,7 @@ class Database_ORM(BASE):
     __tablename__ = 'Database_ORM'
     row_id = Column('row_id', Integer, primary_key=True)
     ssh_ip = Column('ssh_ip', String, nullable=False)
+    ssh_port = Column('ssh_port', Integer, nullable=False)
     ssh_username = Column('ssh_username', String, nullable=False)
     ssh_password = Column('ssh_password', String, nullable=False)
     ssh_command = Column('ssh_command', String, nullable=False)
@@ -186,6 +197,7 @@ class main:
         for i in rows:
             h = SshHelper()
             h.server = i.ssh_ip
+            h.port = i.ssh_port
             h.username = i.ssh_username
             h.password = PasswordHelper().decode_password(i.ssh_password)
             h.command = i.ssh_command
