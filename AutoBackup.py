@@ -59,14 +59,16 @@ class SshHelper:
             ssh.connect(hostname=self.server, username=self.username, password=self.password, port=self.port)
             output = ssh.exec_command(self.command)
             ssh.close()
+            logging.debug(output)
         except paramiko.ssh_exception.NoValidConnectionsError:
             output = "NoValidConnectionsError: " + self.server
             logging.error(output)
         except paramiko.ssh_exception.AuthenticationException:
             output = "Authentication failed: " + self.server
             logging.error(output)
-
-        logging.debug(output)
+        except:
+            output = "Other error (server): " + self.server
+            logging.error(output)
         return output
 
 
@@ -121,30 +123,27 @@ class DatabaseHelper:
         except ValueError:
             print("No row removed")
 
-        # TODO Find a more clever way to do this input
-
         s = self.get_session()
         o = s.query(Database_ORM).filter_by(row_id=row_to_edit).first()
+        ip = input('Enter ssh_ip [' + o.ssh_ip + ']:')
+        if ip != '':
+            o.ssh_ip = ip
 
-        i = input('Enter ssh_ip [' + o.ssh_ip + ']:')
-        if i != '':
-            o.ssh_ip = i
+        port = input('Enter ssh_port [' + str(o.ssh_port) + ']:')
+        if port != '':
+            o.ssh_port = int(port)
 
-        i = int(input('Enter ssh_port [' + o.ssh_port + ']:'))
-        if i != '':
-            o.ssh_ip = i
+        user = input('Enter ssh_username [' + o.ssh_username + ']:')
+        if user != '':
+            o.ssh_username = user
 
-        i = input('Enter ssh_username [' + o.ssh_username + ']:')
-        if i != '':
-            o.ssh_username = i
+        password = PasswordHelper().encode_password(getpass.getpass('Enter ssh_password:'))
+        if password != '':
+            o.ssh_password = password
 
-        i = PasswordHelper().encode_password(getpass.getpass('Enter ssh_password:'))
-        if i != '':
-            o.ssh_password = i
-
-        i = input('Enter ssh_command [' + o.ssh_command + ']:')
-        if i != '':
-            o.ssh_command = i
+        command = input('Enter ssh_command [' + o.ssh_command + ']:')
+        if command != '':
+            o.ssh_command = command
 
         s.commit()
 
