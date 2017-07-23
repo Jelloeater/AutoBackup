@@ -54,12 +54,16 @@ class SshHelper:
 
     def send_command(self):
         try:
+            # diffie-hellman-group-exchange-sha1 for Fortigates
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect(hostname=self.server, username=self.username, password=self.password, port=self.port)
-            output = ssh.exec_command(self.command)
+            stdin, output, stderr = ssh.exec_command(self.command)
+            type(stdin)
+            stdin.close()
             ssh.close()
-            logging.debug(output)
+            logging.debug(output.readlines())
+
         except paramiko.ssh_exception.NoValidConnectionsError:
             output = "NoValidConnectionsError: " + self.server
             logging.error(output)
@@ -69,6 +73,7 @@ class SshHelper:
         except:
             output = "Other error (server): " + self.server
             logging.error(output)
+
         return output
 
 
@@ -117,35 +122,33 @@ class DatabaseHelper:
         s.commit()
 
     def modify_row(self):
-        row_to_edit = None
         try:
             row_to_edit = int(input('Enter row to edit:'))
+            s = self.get_session()
+            o = s.query(Database_ORM).filter_by(row_id=row_to_edit).first()
+            ip = input('Enter ssh_ip [' + o.ssh_ip + ']:')
+            if ip != '':
+                o.ssh_ip = ip
+
+            port = input('Enter ssh_port [' + str(o.ssh_port) + ']:')
+            if port != '':
+                o.ssh_port = int(port)
+
+            user = input('Enter ssh_username [' + o.ssh_username + ']:')
+            if user != '':
+                o.ssh_username = user
+
+            # FIXME Even if user does not change password, it gets invalidated
+            password = PasswordHelper().encode_password(getpass.getpass('Enter ssh_password:'))
+            if password != '':
+                o.ssh_password = password
+
+            command = input('Enter ssh_command [' + o.ssh_command + ']:')
+            if command != '':
+                o.ssh_command = command
+            s.commit()
         except ValueError:
             print("No row removed")
-
-        s = self.get_session()
-        o = s.query(Database_ORM).filter_by(row_id=row_to_edit).first()
-        ip = input('Enter ssh_ip [' + o.ssh_ip + ']:')
-        if ip != '':
-            o.ssh_ip = ip
-
-        port = input('Enter ssh_port [' + str(o.ssh_port) + ']:')
-        if port != '':
-            o.ssh_port = int(port)
-
-        user = input('Enter ssh_username [' + o.ssh_username + ']:')
-        if user != '':
-            o.ssh_username = user
-
-        password = PasswordHelper().encode_password(getpass.getpass('Enter ssh_password:'))
-        if password != '':
-            o.ssh_password = password
-
-        command = input('Enter ssh_command [' + o.ssh_command + ']:')
-        if command != '':
-            o.ssh_command = command
-
-        s.commit()
 
     def delete_row(self):
         row_to_remove = None
@@ -200,7 +203,13 @@ class main:
             h.username = i.ssh_username
             h.password = PasswordHelper().decode_password(i.ssh_password)
             h.command = i.ssh_command
-            h.send_command()
+            o = h.send_command()
+            input = o[0]
+            output = o[1]
+            error = o[2]
+            # for line in output.read().splitlines():
+            #     print ('%s' % (line))
+            pass
 
     @staticmethod
     def run():
@@ -240,6 +249,7 @@ class main:
         if args.exec_commands:
             main.run_commands()
             sys.exit(0)
+
 
 if __name__ == "__main__":
     main.run()
