@@ -1,8 +1,8 @@
 import base64
+import subprocess
 import keyring
 import argparse
 import logging
-import paramiko as paramiko
 import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -51,30 +51,21 @@ class SshHelper:
     password = ""
     port = 22
     command = ""
+    output = None
 
     def send_command(self):
-        try:
-            # diffie-hellman-group-exchange-sha1 for Fortigates
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(hostname=self.server, username=self.username, password=self.password, port=self.port)
-            stdin, output, stderr = ssh.exec_command(self.command)
-            type(stdin)
-            stdin.close()
-            ssh.close()
-            logging.debug(output.readlines())
+        # TODO Write separate methods for each OS
+        pre = "cmd.exe /c echo y |"  # ACCEPT KEY
+        exe = '\"C:\Program Files\PuTTY\plink.exe\" '  # There should be a space here
+        s0 = pre + exe + '-P {2} -ssh {0}@{1} "exit"'.format(self.username, self.server, self.port)
+        logging.debug(s0)
+        subprocess.call(s0, timeout=2)  # Wait x seconds for key to get saved
 
-        except paramiko.ssh_exception.NoValidConnectionsError:
-            output = "NoValidConnectionsError: " + self.server
-            logging.error(output)
-        except paramiko.ssh_exception.AuthenticationException:
-            output = "Authentication failed: " + self.server
-            logging.error(output)
-        except:
-            output = "Other error (server): " + self.server
-            logging.error(output)
-
-        return output
+        s1 = exe + '-pw {3} -P {2} -ssh {0}@{1} "{4}"'.format(self.username, self.server, self.port, self.password,
+                                                              self.command)
+        logging.debug(s1)
+        o = subprocess.check_output(s1, shell=True)
+        return o
 
 
 class DatabaseHelper:
@@ -204,12 +195,7 @@ class main:
             h.password = PasswordHelper().decode_password(i.ssh_password)
             h.command = i.ssh_command
             o = h.send_command()
-            input = o[0]
-            output = o[1]
-            error = o[2]
-            # for line in output.read().splitlines():
-            #     print ('%s' % (line))
-            pass
+            logging.debug(o)
 
     @staticmethod
     def run():
