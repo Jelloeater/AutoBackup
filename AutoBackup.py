@@ -11,6 +11,7 @@ from prettytable import PrettyTable
 import sys
 import unittest
 import getpass
+import platform
 
 __author__ = 'Jesse'
 
@@ -54,18 +55,22 @@ class SshHelper:
     output = None
 
     def send_command(self):
-        # TODO Write separate methods for each OS
-        pre = "cmd.exe /c echo y |"  # ACCEPT KEY
-        exe = '\"C:\Program Files\PuTTY\plink.exe\" '  # There should be a space here
-        s0 = pre + exe + '-P {2} -ssh {0}@{1} "exit"'.format(self.username, self.server, self.port)
-        logging.debug(s0)
-        subprocess.call(s0, timeout=2)  # Wait x seconds for key to get saved
+        if platform.system() == 'Windows':
+            # TODO Write separate methods for each OS
+            pre = "cmd.exe /c echo y |"  # ACCEPT KEY
+            exe = '\"C:\Program Files\PuTTY\plink.exe\" '  # There should be a space here
+            s0 = pre + exe + '-P {2} -ssh {0}@{1} "exit"'.format(self.username, self.server, self.port)
+            logging.debug(s0)
+            subprocess.call(s0, timeout=2)  # Wait x seconds for key to get saved
 
-        s1 = exe + '-pw {3} -P {2} -ssh {0}@{1} "{4}"'.format(self.username, self.server, self.port, self.password,
-                                                              self.command)
-        logging.debug(s1)
-        o = subprocess.check_output(s1, shell=True)
-        return o
+            s1 = exe + '-pw {3} -P {2} -ssh {0}@{1} "{4}"'.format(self.username, self.server, self.port, self.password,
+                                                                  self.command)
+            logging.debug(s1)
+            o = subprocess.check_output(s1, shell=True)
+            return o
+        if platform.system() == 'Linux':
+            pass
+            # TODO Write linux SSH CLI code
 
 
 class DatabaseHelper:
