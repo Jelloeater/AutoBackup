@@ -5,7 +5,7 @@ Securely runs commands over SSH using Python 3
 Install modules via pip install
 
 * keyring
-* paramiko
 * sqlalchemy
 * cryptography
 * prettytable
+* sshpass (Linux)

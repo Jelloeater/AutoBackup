@@ -30,16 +30,28 @@ class PasswordHelper:
         key = Fernet.generate_key()
         encode_key = base64.urlsafe_b64encode(key).decode("utf-8")  # Convert to string for storage
         logging.debug(encode_key)
-        keyring.set_password(self.application_name, self.master_hash_key_location, encode_key)
+        if platform.system() == 'Windows':
+            keyring.set_password(self.application_name, self.master_hash_key_location, encode_key)
+        if platform.system() == 'Linux':
+            f = open('/root/AutoBackup.key', 'w')
+            f.write(encode_key)
+            f.close()
 
     def get_master_pass(self):
-        key_pass = keyring.get_password(self.application_name, self.master_hash_key_location)
-        decode_key_pass = base64.urlsafe_b64decode(key_pass)
+        decode_key_pass = None
+        if platform.system() == 'Windows':
+            key_pass = keyring.get_password(self.application_name, self.master_hash_key_location)
+            return base64.urlsafe_b64decode(key_pass)
+        if platform.system() == 'Linux':
+            f = open('/root/AutoBackup.key', 'r')
+            decode_key_pass = base64.urlsafe_b64decode(f.read())
+            f.close()
         return decode_key_pass
 
     def decode_password(self, hash_pass_in):
-        f = Fernet(self.get_master_pass())
-        return f.decrypt(hash_pass_in).decode("utf-8")
+            p = self.get_master_pass()
+            f = Fernet(p)
+            return f.decrypt(hash_pass_in)
 
     def encode_password(self, password_in):
         f = Fernet(self.get_master_pass())
@@ -56,7 +68,6 @@ class SshHelper:
 
     def send_command(self):
         if platform.system() == 'Windows':
-            # TODO Write separate methods for each OS
             pre = "cmd.exe /c echo y |"  # ACCEPT KEY
             exe = '\"C:\Program Files\PuTTY\plink.exe\" '  # There should be a space here
             s0 = pre + exe + '-P {2} -ssh {0}@{1} "exit"'.format(self.username, self.server, self.port)
@@ -69,7 +80,12 @@ class SshHelper:
             o = subprocess.check_output(s1, shell=True)
             return o
         if platform.system() == 'Linux':
-            pass
+            exe = 'sshpass -p \'{0}\' ssh -oStrictHostKeyChecking=no '.format(
+                self.password)  # There should be a space here
+            s1 = exe + '-p {2} {0}@{1} "{3}"'.format(self.username, self.server, self.port, self.command)
+            logging.debug(s1)
+            o = subprocess.check_output(s1, shell=True)
+            return o
             # TODO Write linux SSH CLI code
 
 
