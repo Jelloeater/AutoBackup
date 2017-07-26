@@ -38,7 +38,6 @@ class PasswordHelper:
             f.close()
 
     def get_master_pass(self):
-        decode_key_pass = None
         if platform.system() == 'Windows':
             key_pass = keyring.get_password(self.application_name, self.master_hash_key_location)
             return base64.urlsafe_b64decode(key_pass)
@@ -46,11 +45,13 @@ class PasswordHelper:
             f = open('/root/AutoBackup.key', 'r')
             decode_key_pass = base64.urlsafe_b64decode(f.read())
             f.close()
-        return decode_key_pass
+            return decode_key_pass
 
     def decode_password(self, hash_pass_in):
-            p = self.get_master_pass()
-            f = Fernet(p)
+            master_pass = self.get_master_pass()
+            logging.debug(master_pass)
+            pass
+            f = Fernet(master_pass)
             return f.decrypt(hash_pass_in)
 
     def encode_password(self, password_in):
