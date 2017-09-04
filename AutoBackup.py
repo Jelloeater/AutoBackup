@@ -15,7 +15,7 @@ import platform
 
 __author__ = 'Jesse'
 
-logging.basicConfig(format="[%(asctime)s] [%(levelname)8s] --- %(message)s (%(filename)s:%(lineno)s)",
+logging.basicConfig(filename='AutoBackup-DEBUG.log',format="[%(asctime)s] [%(levelname)8s] --- %(message)s (%(filename)s:%(lineno)s)",
                     level=logging.DEBUG)
 
 BASE = declarative_base()  # Needs to be module level w/ database
@@ -52,7 +52,7 @@ class PasswordHelper:
             logging.debug(master_pass)
             pass
             f = Fernet(master_pass)
-            return f.decrypt(hash_pass_in)
+            return f.decrypt(hash_pass_in).decode("utf-8")
 
     def encode_password(self, password_in):
         f = Fernet(self.get_master_pass())
@@ -216,6 +216,7 @@ class main:
             h.username = i.ssh_username
             h.password = PasswordHelper().decode_password(i.ssh_password)
             h.command = i.ssh_command
+            logging.debug(h.__dict__)
             o = h.send_command()
             logging.debug(o)
 
