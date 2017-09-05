@@ -24,35 +24,28 @@ BASE = declarative_base()  # Needs to be module level w/ database
 class PasswordHelper:
     application_name = 'AutoBackup'
     master_hash_key_location = 'key'  # Can be overridden for testing
+    key_filename = 'AutoBackup.dat'
 
     def setup_master_key(self):
         logging.debug("Setting up master key")
         key = Fernet.generate_key()
         encode_key = base64.urlsafe_b64encode(key).decode("utf-8")  # Convert to string for storage
         logging.debug(encode_key)
-        if platform.system() == 'Windows':
-            keyring.set_password(self.application_name, self.master_hash_key_location, encode_key)
-        if platform.system() == 'Linux':
-            f = open('/root/AutoBackup.key', 'w')
-            f.write(encode_key)
-            f.close()
+        f = open(self.key_filename, 'w')
+        f.write(encode_key)
+        f.close()
 
     def get_master_pass(self):
-        if platform.system() == 'Windows':
-            key_pass = keyring.get_password(self.application_name, self.master_hash_key_location)
-            return base64.urlsafe_b64decode(key_pass)
-        if platform.system() == 'Linux':
-            f = open('/root/AutoBackup.key', 'r')
-            decode_key_pass = base64.urlsafe_b64decode(f.read())
-            f.close()
-            return decode_key_pass
+        f = open(self.key_filename, 'r')
+        decode_key_pass = base64.urlsafe_b64decode(f.read())
+        f.close()
+        return decode_key_pass
 
     def decode_password(self, hash_pass_in):
-            master_pass = self.get_master_pass()
-            logging.debug(master_pass)
-            pass
-            f = Fernet(master_pass)
-            return f.decrypt(hash_pass_in).decode("utf-8")
+        master_pass = self.get_master_pass()
+        logging.debug(master_pass)
+        f = Fernet(master_pass)
+        return f.decrypt(hash_pass_in).decode("utf-8")
 
     def encode_password(self, password_in):
         f = Fernet(self.get_master_pass())
